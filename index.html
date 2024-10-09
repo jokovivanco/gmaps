@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Scraper Client</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      input,
+      button {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      #status {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Web Scraper Client</h1>
+    <form id="scraperForm">
+      <input
+        type="text"
+        id="nameSheet"
+        placeholder="Enter sheet name (e.g., results.csv)"
+        required
+      />
+      <input
+        type="url"
+        id="googleUrl"
+        placeholder="Enter Google Maps URL"
+        required
+      />
+      <button type="submit">Start Scraping</button>
+    </form>
+    <div id="status"></div>
+
+    <script>
+      document
+        .getElementById("scraperForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+
+          const nameSheet = document.getElementById("nameSheet").value;
+          const googleUrl = document.getElementById("googleUrl").value;
+          const statusDiv = document.getElementById("status");
+
+          statusDiv.textContent = "Scraping in progress...";
+
+          fetch("http://localhost:3000/scrap", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ nameSheet, googleUrl }),
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error("Network response was not ok");
+              }
+              return response.blob();
+            })
+            .then((blob) => {
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.style.display = "none";
+              a.href = url;
+              a.download = nameSheet;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              statusDiv.textContent =
+                "Scraping completed! CSV file downloaded.";
+            })
+            .catch((error) => {
+              console.error("Error:", error);
+              statusDiv.textContent = "An error occurred during scraping.";
+            });
+        });
+    </script>
+  </body>
+</html>
