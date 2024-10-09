@@ -1,0 +1,10 @@
+services:
+  app:
+    container_name: app
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: "app:1.0.0"
+    restart: always
+    ports:
+      - "9000:3000"
