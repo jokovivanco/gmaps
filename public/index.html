@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Scraper Client</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      input,
+      button {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      #status {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+      }
+      .progress-bar {
+        width: 100%;
+        background-color: #e0e0e0;
+        padding: 3px;
+        border-radius: 3px;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      .progress-bar-fill {
+        display: block;
+        height: 22px;
+        background-color: #659cef;
+        border-radius: 3px;
+        transition: width 500ms ease-in-out;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Web Scraper Client</h1>
+    <form id="scraperForm">
+      <input
+        type="text"
+        id="nameSheet"
+        placeholder="Enter sheet name (e.g., results.csv)"
+        required
+      />
+      <input
+        type="url"
+        id="googleUrl"
+        placeholder="Enter Google Maps URL"
+        required
+      />
+      <button type="submit">Start Scraping</button>
+    </form>
+    <div id="status"></div>
+    <div class="progress-bar">
+      <span class="progress-bar-fill" style="width: 0%"></span>
+    </div>
+
+    <script>
+      const form = document.getElementById("scraperForm");
+      const statusDiv = document.getElementById("status");
+      const progressBarFill = document.querySelector(".progress-bar-fill");
+      let eventSource;
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        const nameSheet = document.getElementById("nameSheet").value;
+        const googleUrl = document.getElementById("googleUrl").value;
+
+        statusDiv.textContent = "Scraping in progress...";
+        progressBarFill.style.width = "0%";
+
+        // Start listening for progress updates
+        eventSource = new EventSource("/progress");
+        eventSource.onmessage = function (event) {
+          const data = JSON.parse(event.data);
+          if (data.status === "scrolling") {
+            statusDiv.textContent = `Scrolling: ${data.progress} iterations`;
+          } else if (data.status === "scraping") {
+            statusDiv.textContent = `Scraping: ${data.progress}% complete`;
+            progressBarFill.style.width = `${data.progress}%`;
+          } else if (data.status === "completed") {
+            statusDiv.textContent = "Scraping completed!";
+            progressBarFill.style.width = "100%";
+            eventSource.close();
+          } else if (data.status === "error") {
+            statusDiv.textContent = `Error: ${data.message}`;
+            eventSource.close();
+          }
+        };
+
+        fetch("/scrap", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ nameSheet, googleUrl }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Network response was not ok");
+            }
+            return response.blob();
+          })
+          .then((blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = url;
+            a.download = nameSheet;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            statusDiv.textContent = "Scraping completed! CSV file downloaded.";
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            statusDiv.textContent = "An error occurred during scraping.";
+          })
+          .finally(() => {
+            if (eventSource) {
+              eventSource.close();
+            }
+          });
+      });
+    </script>
+  </body>
+</html>

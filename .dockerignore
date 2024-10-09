@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+dist
+.venv
+.git
+test
+.gitignore
+.REST
+*.md
+.gitignore

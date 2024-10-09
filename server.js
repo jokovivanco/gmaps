@@ -1,14 +1,34 @@
 const express = require("express");
 const { chromium } = require("playwright");
-const cors = require("cors");
 const { Transform } = require("stream");
 const { stringify } = require("csv-stringify");
+const path = require("path");
 
 const app = express();
 const port = 3000;
 
 app.use(express.json());
-app.use(cors());
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/progress", (req, res) => {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  req.on("close", () => {
+    console.log("Client closed connection");
+  });
+
+  global.sendProgress = (progress) => {
+    res.write(`data: ${JSON.stringify(progress)}\n\n`);
+  };
+});
 
 app.post("/scrap", async (req, res) => {
   const { nameSheet, googleUrl } = req.body;
@@ -24,11 +44,9 @@ app.post("/scrap", async (req, res) => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    // Navigate to Google Maps search page
     await page.goto(googleUrl);
     await page.waitForSelector('[jstcache="3"]');
 
-    // Scroll through the list to load all results
     const scrollable = await page.$(
       "xpath=/html/body/div[2]/div[3]/div[8]/div[9]/div/div/div[1]/div[2]/div/div[1]/div/div/div[1]/div[1]"
     );
@@ -46,6 +64,7 @@ app.post("/scrap", async (req, res) => {
         document.body.innerText.includes("You've reached the end of the list")
       );
       console.log("scroll " + index);
+      global.sendProgress({ status: "scrolling", progress: index });
 
       if (index === 200) {
         endOfList = true;
@@ -54,7 +73,6 @@ app.post("/scrap", async (req, res) => {
       index++;
     }
 
-    // Extract URLs
     const urls = await page.$$eval("a", (links) =>
       links
         .map((link) => link.href)
@@ -136,8 +154,7 @@ app.post("/scrap", async (req, res) => {
       return { name, rating, reviews, category, address, website, phone, url };
     };
 
-    // Batch processing
-    const batchSize = 5; // Adjust batch size based on your system capability
+    const batchSize = 5;
     const results = [];
 
     for (let i = 0; i < urls.length; i += batchSize) {
@@ -147,12 +164,15 @@ app.post("/scrap", async (req, res) => {
       );
       results.push(...batchResults);
       console.log(`Batch ${i / batchSize + 1} completed.`);
+      global.sendProgress({
+        status: "scraping",
+        progress: Math.round(((i + batchSize) / urls.length) * 100),
+      });
     }
 
     await browser.close();
     console.timeEnd("Execution Time");
 
-    // Set up CSV streaming
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename=${nameSheet}`);
 
@@ -173,9 +193,12 @@ app.post("/scrap", async (req, res) => {
     resultStream.push(null);
 
     resultStream.pipe(stringifier).pipe(res);
+
+    global.sendProgress({ status: "completed", progress: 100 });
   } catch (error) {
     console.error("Error during scraping:", error);
     res.status(500).json({ error: "An error occurred during scraping" });
+    global.sendProgress({ status: "error", message: error.message });
   }
 });
 
