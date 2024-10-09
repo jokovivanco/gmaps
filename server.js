@@ -84,9 +84,6 @@ app.post("/scrap", async (c) => {
       if (endOfList || stopScraping) {
         index = 0;
       }
-
-      // Add a small delay to allow for stop checks
-      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     const urls = await page.$$eval("a", (links) =>
