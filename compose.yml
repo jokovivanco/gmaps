@@ -4,7 +4,7 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
-    image: "app:1.0.0"
+    image: "app:2.0.0"
     restart: always
     ports:
       - "9000:3000"

@@ -25,6 +25,12 @@
         border: none;
         cursor: pointer;
       }
+      button.stop {
+        background-color: #d32014;
+      }
+      button.stop:hover {
+        background-color: #b11e13;
+      }
       button:hover {
         background-color: #45a049;
       }
@@ -40,6 +46,7 @@
         padding: 3px;
         border-radius: 3px;
         box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+        box-sizing: border-box;
       }
       .progress-bar-fill {
         display: block;
@@ -67,12 +74,25 @@
       />
       <button type="submit">Start Scraping</button>
     </form>
-    <div id="status"></div>
-    <div class="progress-bar">
-      <span class="progress-bar-fill" style="width: 0%"></span>
+    <div style="display: flex; flex-direction: column; gap: 5px">
+      <div>
+        <div id="status"></div>
+        <div class="progress-bar">
+          <span class="progress-bar-fill" style="width: 0%"></span>
+        </div>
+      </div>
+      <button type="button" class="stop" id="stopButton">Stop Scrolling</button>
     </div>
 
     <script>
+      document
+        .getElementById("stopButton")
+        .addEventListener("click", async () => {
+          const response = await fetch("/stop", { method: "POST" });
+          const result = await response.json();
+          console.log(result.message);
+        });
+
       const form = document.getElementById("scraperForm");
       const statusDiv = document.getElementById("status");
       const progressBarFill = document.querySelector(".progress-bar-fill");

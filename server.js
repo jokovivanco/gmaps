@@ -6,6 +6,15 @@ import { stringify } from "csv-stringify";
 
 const app = new Hono();
 
+// Add a global variable to track if the scraping should be stopped
+let stopScraping = false;
+
+function forceLanguageToEnglish(url) {
+  const parsedUrl = new URL(url);
+  parsedUrl.searchParams.set("hl", "en");
+  return parsedUrl.href;
+}
+
 app.use("/*", serveStatic({ root: "./public" }));
 
 app.get("/progress", (c) => {
@@ -25,6 +34,13 @@ app.get("/progress", (c) => {
   });
 });
 
+// Add a new endpoint to handle stop requests
+app.post("/stop", (c) => {
+  stopScraping = true;
+  global.progress = { status: "stopped", progress: 100 };
+  return c.json({ message: "Scraping stopped" });
+});
+
 app.post("/scrap", async (c) => {
   const { nameSheet, googleUrl } = await c.req.json();
 
@@ -32,12 +48,14 @@ app.post("/scrap", async (c) => {
     return c.json({ error: "nameSheet and googleUrl are required" }, 400);
   }
 
+  const googleUrlParsed = forceLanguageToEnglish(googleUrl);
+
   try {
     console.time("Execution Time");
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    await page.goto(googleUrl);
+    await page.goto(googleUrlParsed);
     await page.waitForSelector('[jstcache="3"]');
 
     const scrollable = await page.$(
@@ -51,7 +69,9 @@ app.post("/scrap", async (c) => {
 
     let endOfList = false;
     let index = 0;
-    while (!endOfList) {
+    stopScraping = false;
+
+    while (!endOfList && !stopScraping) {
       await scrollable.evaluate((node) => node.scrollBy(0, 50000));
       endOfList = await page.evaluate(() =>
         document.body.innerText.includes("You've reached the end of the list")
@@ -59,11 +79,14 @@ app.post("/scrap", async (c) => {
       console.log("scroll " + index);
       global.progress = { status: "scrolling", progress: index };
 
-      if (index === 200) {
-        endOfList = true;
+      index++;
+
+      if (endOfList || stopScraping) {
+        index = 0;
       }
 
-      index++;
+      // Add a small delay to allow for stop checks
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     const urls = await page.$$eval("a", (links) =>
