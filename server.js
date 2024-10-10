@@ -9,18 +9,9 @@ const app = new Hono();
 // Add a global variable to track if the scraping should be stopped
 let stopScraping = false;
 
-function toScrappableUrl(url) {
+function forceLanguageToEnglish(url) {
   const parsedUrl = new URL(url);
-
-  // Menghapus segmen /data= dari pathname
-  parsedUrl.pathname = parsedUrl.pathname.split("/data=")[0];
-
-  // Menghapus semua parameter search kecuali 'hl'
-  parsedUrl.search = "";
-
-  // Menambahkan atau mengatur parameter 'hl' ke 'en'
   parsedUrl.searchParams.set("hl", "en");
-
   return parsedUrl.href;
 }
 
@@ -57,7 +48,7 @@ app.post("/scrap", async (c) => {
     return c.json({ error: "nameSheet and googleUrl are required" }, 400);
   }
 
-  const googleUrlParsed = toScrappableUrl(googleUrl);
+  const googleUrlParsed = forceLanguageToEnglish(googleUrl);
 
   try {
     console.time("Execution Time");
